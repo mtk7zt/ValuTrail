@@ -1,0 +1,5 @@
+eventId,sequence,date,symbol,price
+e1,1,2024-08-29,AAPL,227.88
+e2,2,2024-08-29,WMT,75.23
+e3,3,2024-08-30,AAPL,227.10
+e4,4,2024-08-30,WMT,76.03
