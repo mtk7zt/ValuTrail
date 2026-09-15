@@ -1,8 +1,8 @@
 # ValuTrail
 
-A usable, traceable portfolio-valuation solution built on Java 17, designed to replay ordered market price events across signed portfolios and compute deterministic marked values and P&L.
+ValuTrail is a portfolio valuation tool built in Java 17. It replays ordered market price events across an initial signed portfolio and tracks how each event changes marked value and cumulative P&L.
 
-> **Current State**: The repository contains the tested Java 17 Maven foundation and example fixtures with hand-checked calculations and prices flagged for source review, not independently verified closing quotes. Replay execution logic is planned for the next step; no portfolio replay classes, streaming engines, or market APIs are implemented yet.
+> **Current State**: The repository contains the tested Java 17 foundation, in-memory domain records (`Position`, `PriceEvent`, `ReplayResult`), and `ReplayEngine`, alongside example fixtures with hand-checked calculations. The three AAPL prices are verified against StatMuse daily close tables, while the three WMT prices remain illustrative. CSV parsing, file ingestion, and CLI replay execution are not yet implemented.
 
 ## Prerequisites
 
@@ -13,7 +13,7 @@ A usable, traceable portfolio-valuation solution built on Java 17, designed to r
 ## Verified Commands
 
 ### Build & Test
-Compile the project and run the automated test suite:
+Compile the project and run the automated test suite (verifying replay engine logic and arithmetic against fixture inputs):
 ```bash
 mvn -B test
 ```
@@ -44,7 +44,7 @@ WMT,-20,74.90
 ```
 
 - `symbol`: Equity ticker symbol.
-- `quantity`: Signed share quantity held (+10 long AAPL, -20 short WMT). These are illustrative, synthetic holdings chosen to test a mixed long/short portfolio of differing magnitudes.
+- `quantity`: Signed share quantity held (+10 long AAPL, -20 short WMT). I chose these illustrative quantities to test a mixed long/short portfolio with different position sizes.
 - `baseline_price`: Starting USD price per share as of 2024-08-28.
 
 #### 2. Ordered Price Events: [`examples/prices.csv`](examples/prices.csv)
@@ -59,17 +59,18 @@ e4,4,2024-08-30,WMT,76.03
 ```
 
 - `eventId`: Stable identifier (`e1`–`e4`).
-- `sequence`: Replay execution order (`1`–`4`). Note: `sequence` is our **chosen processing order** for the two observations sharing each trading date, not an empirical claim about intraday market arrival order.
+- `sequence`: Replay processing order (`1`–`4`). I use sequence to define an unambiguous processing order when events share a trading date; it is not a claim about intraday market arrival order.
 - `date`: Calendar trading date.
 - `symbol`: Ticker symbol of the asset being updated.
 - `price`: USD reference price.
 
-> **Data Provenance & Source Review**: The six prices are sourced from public aggregator queries on StatMuse for late August 2024. Because provider conventions vary across aggregators (e.g. unadjusted vs split-adjusted closes vs intraday points), these figures are flagged for source review and treated as illustrative reference inputs with hand-checked calculations, not independently verified closing quotes. See [`docs/DATA-PROVENANCE.md`](docs/DATA-PROVENANCE.md) for direct links and details.
+> **Data Provenance & Source Review**: On 2026-09-15, I checked these fixture prices against historical tables on StatMuse Money. The three AAPL prices ($224.61, $227.88, $227.10) match StatMuse's displayed `CLOSE` column. The three WMT prices ($74.90, $75.23, $76.03) differ from the displayed `CLOSE` column ($74.72, $75.05, $75.85) by +$0.18 and are labeled as illustrative inputs. Mismatches are tracked in [`docs/DATA-PROVENANCE.md`](docs/DATA-PROVENANCE.md); changing a fixture requires updating its hand-checked calculations and tests together in a reviewed change.
 
 ### Valuation Rules & Reference Results
 
 - **Replay Rule**: An incoming price event updates **only its own symbol’s latest price**. All other portfolio symbols retain their most recently observed price (or baseline price).
 - **Marked-Value Model**: Position Value = $\text{quantity} \times \text{latest\_price}$; Portfolio Value = $\sum \text{Position Value}$; Cumulative P&L = $\text{Current Value} - \text{Baseline Value}$.
+- **State Integrity & Execution Model**: Rejected events leave engine state unchanged. The engine currently processes events in a single thread.
 - **Accounting Note**: This signed sum is a **simplified marked-value test**, not a complete account balance for a real short sale (which requires cash collateral, borrow fees, and separate short liability tracking). Detailed step-by-step arithmetic is documented in [`docs/EXAMPLE-CALCULATION.md`](docs/EXAMPLE-CALCULATION.md).
 
 | Step | Date | Trigger Event | AAPL Price | WMT Price | Marked Value (USD) | Cumulative P&L (USD) |
@@ -82,4 +83,4 @@ e4,4,2024-08-30,WMT,76.03
 
 ## Next Steps
 
-- **Replay Implementation**: Implement domain classes and an event loader to ingest `examples/positions.csv` and `examples/prices.csv`, replaying events by `sequence` and verifying output against the reference table.
+- **CSV Parsing & CLI Replay**: Add file loaders to parse `examples/positions.csv` and `examples/prices.csv`, feed the records into `ReplayEngine`, and wire up `Main` so the replay can be run from the command line.
