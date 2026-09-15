@@ -69,6 +69,74 @@ Risk Replay Engine — project initialized
 - The engine currently processes events in a single thread.
 
 ### Limitations
-- CSV file parsing and automated ingestion of `examples/positions.csv` and `examples/prices.csv` are not yet implemented.
-- CLI arguments and execution in `Main` are not yet implemented.
 - The engine processes events sequentially in a single thread; concurrent event processing is not supported.
+
+---
+
+## 3. File-Driven Replay & CLI Execution Verification (2026-09-15)
+
+### Automated Test Suite Execution
+- **Command**: `mvn -B clean test`
+- **Targets**: `dev.esosa.risk.MainTest`, `dev.esosa.risk.ReplayEngineTest`, `dev.esosa.risk.CsvParserTest`
+- **Result**: PASSED (31 tests, 0 failures, 0 errors, 0 skipped)
+
+```text
+[INFO] Running dev.esosa.risk.CsvParserTest
+[INFO] Tests run: 19, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.159 s -- in dev.esosa.risk.CsvParserTest
+[INFO] Running dev.esosa.risk.MainTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.014 s -- in dev.esosa.risk.MainTest
+[INFO] Running dev.esosa.risk.ReplayEngineTest
+[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.020 s -- in dev.esosa.risk.ReplayEngineTest
+[INFO] 
+[INFO] Results:
+[INFO] 
+[INFO] Tests run: 31, Failures: 0, Errors: 0, Skipped: 0
+[INFO] 
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+```
+
+### CLI Replay Execution Across Two Fresh Processes
+
+#### Process 1 Execution
+- **Command**: `mvn compile exec:java "-Dexec.args=examples/positions.csv examples/prices.csv"`
+- **Result**: SUCCESS
+
+```text
+Baseline: 751.70
+1 e1 2024-08-29 AAPL 784.40 +32.70
+2 e2 2024-08-29 WMT 777.80 +26.10
+3 e3 2024-08-30 AAPL 770.00 +18.30
+4 e4 2024-08-30 WMT 754.00 +2.30
+```
+
+#### Process 2 Execution
+- **Command**: `mvn compile exec:java "-Dexec.args=examples/positions.csv examples/prices.csv"`
+- **Result**: SUCCESS
+
+```text
+Baseline: 751.70
+1 e1 2024-08-29 AAPL 784.40 +32.70
+2 e2 2024-08-29 WMT 777.80 +26.10
+3 e3 2024-08-30 AAPL 770.00 +18.30
+4 e4 2024-08-30 WMT 754.00 +2.30
+```
+
+#### Process Output Comparison
+Comparison of the stdout stream across both fresh executions confirmed identical output (0 byte difference).
+
+### Verified Behavior
+- Reads `examples/positions.csv` (exact header `symbol,quantity,baseline_price`) and `examples/prices.csv` (exact header `eventId,sequence,date,symbol,price`).
+- Replay outputs baseline value $751.70 USD followed by all accepted events in processing sequence with ID, date, symbol, marked portfolio value, and cumulative P&L ($784.40 / +$32.70, $777.80 / +$26.10, $770.00 / +$18.30, $754.00 / +$2.30).
+- Replay report lines are collected locally and written to stdout only after all parsed events have processed successfully; any rejected event aborts execution and produces no partial report in stdout.
+- Rejects bad headers, malformed rows, blank fields, invalid numbers, and unparseable dates with an error naming the file and row number without echoing whole untrusted input rows.
+- Rejects duplicate position symbols with an error naming the file and row number.
+- Explicitly rejects quotation marks (`"`) to prevent silent misparsing of quoted or multiline fields.
+- Preserves replay engine invariants: engine rule violations (conflicting duplicate event IDs, unknown symbols, non-advancing sequences) throw `IllegalArgumentException` and leave engine state completely unchanged.
+- Execution is completely deterministic across independent fresh processes.
+
+### Limitations
+- Supported CSV format is strictly unquoted comma-delimited UTF-8; quotation marks and quoted or multiline fields are unsupported.
+- The CLI entrypoint accepts exactly two positional arguments (`<positions.csv> <prices.csv>`).
+- Replay processing is single-threaded.

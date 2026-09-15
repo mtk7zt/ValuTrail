@@ -63,3 +63,22 @@ ValuTrail is a portfolio valuation tool where traceable calculation integrity is
 - Provides transparent auditability for any data entering the codebase.
 - Protects users and downstream developers from mistaking synthetic test numbers for verified historical prices.
 - Establishes a clear review checklist for contributors in `CONTRIBUTING.md`.
+
+---
+
+## ADR-004: Lightweight Unquoted CSV Parsing & Format Policy
+
+### Status
+Accepted
+
+### Context
+I needed to ingest portfolio holdings (`examples/positions.csv`) and price events (`examples/prices.csv`) into the domain model without pulling in third-party CSV libraries (e.g. Commons CSV, OpenCSV, Jackson) or conflating file parsing with valuation logic.
+
+### Decisions
+1. **Separation of Responsibilities**: CSV parsing and syntax/schema validation live entirely in `CsvParser`. It checks file existence, exact headers, column counts, data types (numeric quantities/prices and ISO-8601 dates), and duplicate position symbols, formatting errors as `<file>:<row>: <reason>`. Business valuation rules, sequence advancement, and duplicate event ID handling remain strictly in `ReplayEngine`.
+2. **Unquoted Comma-Delimited Format**: The reader expects plain, unquoted UTF-8 comma-separated rows. To avoid silent misparsing or data corruption, any line containing quotation marks (`"`) is rejected immediately with an explicit error naming the file and row number.
+3. **Strict Row Validation**: Blank fields, empty lines, column count mismatches, and non-positive prices/sequences throw `IllegalArgumentException` identifying the specific file and row.
+
+### Consequences
+- Zero external dependencies are added to `pom.xml`.
+- Contributors know that quotation marks and quoted or multiline CSV records are not supported; if quote parsing is needed in the future, a full RFC 4180 parser must be implemented explicitly rather than relying on regex or string splits.

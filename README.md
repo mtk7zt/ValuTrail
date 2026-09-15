@@ -2,7 +2,7 @@
 
 ValuTrail is a portfolio valuation tool built in Java 17. It replays ordered market price events across an initial signed portfolio and tracks how each event changes marked value and cumulative P&L.
 
-> **Current State**: The repository contains the tested Java 17 foundation, in-memory domain records (`Position`, `PriceEvent`, `ReplayResult`), and `ReplayEngine`, alongside example fixtures with hand-checked calculations. All six fixture prices match StatMuse's displayed daily `CLOSE` table. CSV parsing, file ingestion, and CLI replay execution are not yet implemented.
+> **Current State**: The repository contains the tested Java 17 foundation, in-memory domain records (`Position`, `PriceEvent`, `ReplayResult`), `ReplayEngine`, strict unquoted CSV parsing (`CsvParser`), and the file-driven CLI entrypoint (`Main`). All six fixture prices match StatMuse's displayed daily `CLOSE` table.
 
 ## Prerequisites
 
@@ -13,19 +13,27 @@ ValuTrail is a portfolio valuation tool built in Java 17. It replays ordered mar
 ## Verified Commands
 
 ### Build & Test
-Compile the project and run the automated test suite (verifying replay engine logic and arithmetic against fixture inputs):
+Compile the project and run the automated test suite (verifying replay engine logic, CSV parsing, and arithmetic against fixture inputs):
 ```bash
 mvn -B test
 ```
 
 ### Run Application Entrypoint
-Execute the entrypoint `dev.esosa.risk.Main` via Maven:
+Execute the file-driven replay entrypoint `dev.esosa.risk.Main` via Maven by passing the positions file first and prices file second:
 ```bash
-mvn compile exec:java
+mvn compile exec:java "-Dexec.args=examples/positions.csv examples/prices.csv"
+```
+Or in quiet mode (suppressing Maven lifecycle logs):
+```bash
+mvn -q compile exec:java "-Dexec.args=examples/positions.csv examples/prices.csv"
 ```
 Expected output:
 ```text
-Risk Replay Engine — project initialized
+Baseline: 751.70
+1 e1 2024-08-29 AAPL 784.40 +32.70
+2 e2 2024-08-29 WMT 777.80 +26.10
+3 e3 2024-08-30 AAPL 770.00 +18.30
+4 e4 2024-08-30 WMT 754.00 +2.30
 ```
 
 ## Replay Example Contract & Calculation Model
@@ -64,6 +72,8 @@ e4,4,2024-08-30,WMT,75.85
 - `symbol`: Ticker symbol of the asset being updated.
 - `price`: USD reference price.
 
+> **Supported CSV Format & Validation**: The file reader accepts plain, unquoted UTF-8 comma-delimited rows with the exact headers shown above. Quotation marks (`"`) and quoted or multiline fields are unsupported; rows containing quotation marks, blank values, or unexpected column counts are rejected immediately with an error identifying the file and row number. Duplicate position symbols are rejected before replay begins.
+
 > **Data Provenance & Source Review**: On 2026-09-15, I checked and updated these fixture prices against historical tables on StatMuse Money. All six fixture prices match the values displayed in StatMuse's `CLOSE` column for August 28, 29, and 30, 2024 (without claiming a price convention StatMuse has not defined). The share quantities (+10 AAPL, -20 WMT) remain illustrative synthetic holdings chosen to test signed portfolio arithmetic. See [`docs/DATA-PROVENANCE.md`](docs/DATA-PROVENANCE.md) for full provenance details.
 
 ### Valuation Rules & Reference Results
@@ -83,4 +93,5 @@ e4,4,2024-08-30,WMT,75.85
 
 ## Next Steps
 
-- **CSV Parsing & CLI Replay**: Add file loaders to parse `examples/positions.csv` and `examples/prices.csv`, feed the records into `ReplayEngine`, and wire up `Main` so the replay can be run from the command line.
+- **Output Formatting & Export**: Provide options for JSON or CSV report output formats alongside standard CLI stdout lines.
+- **Performance & Large Feeds**: Evaluate streaming event processing for large datasets while preserving single-threaded replay determinism.
