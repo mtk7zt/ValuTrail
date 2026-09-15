@@ -1,0 +1,15 @@
+target/
+.ai-work/
+*.class
+
+# IDE and Editor Files
+.idea/
+*.iml
+.vscode/
+.settings/
+.project
+.classpath
+
+# OS Generated Files
+.DS_Store
+Thumbs.db
