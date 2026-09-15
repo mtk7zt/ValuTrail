@@ -59,8 +59,8 @@ Risk Replay Engine — project initialized
 ```
 
 ### Verified Behavior
-- The baseline portfolio value calculates to $748.10 USD with an initial P&L of $0.00.
-- Processing the four sequential price events (`e1`–`e4`) yields the expected marked values ($780.80, $774.20, $766.40, $750.40) and cumulative P&L figures (+$32.70, +$26.10, +$18.30, +$2.30).
+- The baseline portfolio value calculates to $751.70 USD with an initial P&L of $0.00.
+- Processing the four sequential price events (`e1`–`e4`) yields the expected marked values ($784.40, $777.80, $770.00, $754.00) and cumulative P&L figures (+$32.70, +$26.10, +$18.30, +$2.30).
 - Candidate valuations and `ReplayResult` objects are computed before modifying internal state; if validation fails, nothing is updated.
 - A freshly constructed identical duplicate event is ignored and returns `Optional.empty()`.
 - Conflicting duplicate events with altered prices, sequences, dates, or symbols throw `IllegalArgumentException` and leave all engine getters unchanged.

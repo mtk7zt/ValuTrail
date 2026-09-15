@@ -19,16 +19,16 @@ class ReplayEngineTest {
     private List<Position> createExamplePositions() {
         return List.of(
                 new Position("AAPL", new BigDecimal("10"), new BigDecimal("224.61")),
-                new Position("WMT", new BigDecimal("-20"), new BigDecimal("74.90"))
+                new Position("WMT", new BigDecimal("-20"), new BigDecimal("74.72"))
         );
     }
 
     private List<PriceEvent> createExampleEvents() {
         return List.of(
                 new PriceEvent("e1", 1, LocalDate.of(2024, 8, 29), "AAPL", new BigDecimal("227.88")),
-                new PriceEvent("e2", 2, LocalDate.of(2024, 8, 29), "WMT", new BigDecimal("75.23")),
+                new PriceEvent("e2", 2, LocalDate.of(2024, 8, 29), "WMT", new BigDecimal("75.05")),
                 new PriceEvent("e3", 3, LocalDate.of(2024, 8, 30), "AAPL", new BigDecimal("227.10")),
-                new PriceEvent("e4", 4, LocalDate.of(2024, 8, 30), "WMT", new BigDecimal("76.03"))
+                new PriceEvent("e4", 4, LocalDate.of(2024, 8, 30), "WMT", new BigDecimal("75.85"))
         );
     }
 
@@ -37,9 +37,9 @@ class ReplayEngineTest {
     void replaysExampleScenarioAccurately() {
         ReplayEngine engine = new ReplayEngine(createExamplePositions());
 
-        // Assert baseline value (748.10)
-        assertEquals(0, new BigDecimal("748.10").compareTo(engine.getBaselineValue()));
-        assertEquals(0, new BigDecimal("748.10").compareTo(engine.getCurrentValue()));
+        // Assert baseline value (751.70)
+        assertEquals(0, new BigDecimal("751.70").compareTo(engine.getBaselineValue()));
+        assertEquals(0, new BigDecimal("751.70").compareTo(engine.getCurrentValue()));
         assertEquals(0, BigDecimal.ZERO.compareTo(engine.getCumulativePnL()));
 
         List<PriceEvent> events = createExampleEvents();
@@ -47,34 +47,34 @@ class ReplayEngineTest {
         // Event e1: AAPL @ 227.88
         Optional<ReplayResult> r1 = engine.process(events.get(0));
         assertTrue(r1.isPresent());
-        assertEquals(0, new BigDecimal("780.80").compareTo(r1.get().portfolioValue()));
+        assertEquals(0, new BigDecimal("784.40").compareTo(r1.get().portfolioValue()));
         assertEquals(0, new BigDecimal("32.70").compareTo(r1.get().cumulativePnL()));
         assertEquals(0, new BigDecimal("227.88").compareTo(engine.getLatestPrice("AAPL")));
-        assertEquals(0, new BigDecimal("74.90").compareTo(engine.getLatestPrice("WMT"))); // WMT unchanged
+        assertEquals(0, new BigDecimal("74.72").compareTo(engine.getLatestPrice("WMT"))); // WMT unchanged
 
-        // Event e2: WMT @ 75.23 (same date 2024-08-29, sequence 2)
+        // Event e2: WMT @ 75.05 (same date 2024-08-29, sequence 2)
         Optional<ReplayResult> r2 = engine.process(events.get(1));
         assertTrue(r2.isPresent());
-        assertEquals(0, new BigDecimal("774.20").compareTo(r2.get().portfolioValue()));
+        assertEquals(0, new BigDecimal("777.80").compareTo(r2.get().portfolioValue()));
         assertEquals(0, new BigDecimal("26.10").compareTo(r2.get().cumulativePnL()));
         assertEquals(0, new BigDecimal("227.88").compareTo(engine.getLatestPrice("AAPL"))); // AAPL unchanged
-        assertEquals(0, new BigDecimal("75.23").compareTo(engine.getLatestPrice("WMT")));
+        assertEquals(0, new BigDecimal("75.05").compareTo(engine.getLatestPrice("WMT")));
 
         // Event e3: AAPL @ 227.10
         Optional<ReplayResult> r3 = engine.process(events.get(2));
         assertTrue(r3.isPresent());
-        assertEquals(0, new BigDecimal("766.40").compareTo(r3.get().portfolioValue()));
+        assertEquals(0, new BigDecimal("770.00").compareTo(r3.get().portfolioValue()));
         assertEquals(0, new BigDecimal("18.30").compareTo(r3.get().cumulativePnL()));
         assertEquals(0, new BigDecimal("227.10").compareTo(engine.getLatestPrice("AAPL")));
-        assertEquals(0, new BigDecimal("75.23").compareTo(engine.getLatestPrice("WMT"))); // WMT unchanged
+        assertEquals(0, new BigDecimal("75.05").compareTo(engine.getLatestPrice("WMT"))); // WMT unchanged
 
-        // Event e4: WMT @ 76.03
+        // Event e4: WMT @ 75.85
         Optional<ReplayResult> r4 = engine.process(events.get(3));
         assertTrue(r4.isPresent());
-        assertEquals(0, new BigDecimal("750.40").compareTo(r4.get().portfolioValue()));
+        assertEquals(0, new BigDecimal("754.00").compareTo(r4.get().portfolioValue()));
         assertEquals(0, new BigDecimal("2.30").compareTo(r4.get().cumulativePnL()));
         assertEquals(0, new BigDecimal("227.10").compareTo(engine.getLatestPrice("AAPL"))); // AAPL unchanged
-        assertEquals(0, new BigDecimal("76.03").compareTo(engine.getLatestPrice("WMT")));
+        assertEquals(0, new BigDecimal("75.85").compareTo(engine.getLatestPrice("WMT")));
         assertEquals(4L, engine.getLastAcceptedSequence());
     }
 
@@ -91,7 +91,7 @@ class ReplayEngineTest {
         Optional<ReplayResult> rDuplicate = engine.process(e1FreshDuplicate);
 
         assertFalse(rDuplicate.isPresent(), "Freshly constructed duplicate must be ignored idempotently");
-        assertEquals(0, new BigDecimal("780.80").compareTo(engine.getCurrentValue()));
+        assertEquals(0, new BigDecimal("784.40").compareTo(engine.getCurrentValue()));
         assertEquals(0, new BigDecimal("32.70").compareTo(engine.getCumulativePnL()));
         assertEquals(1L, engine.getLastAcceptedSequence());
         assertEquals(1, engine.getAcceptedEventIds().size());
@@ -159,7 +159,7 @@ class ReplayEngineTest {
         PriceEvent invalidEvent = new PriceEvent("e_unknown", 1, LocalDate.of(2024, 8, 29), "MSFT", new BigDecimal("400.00"));
 
         assertThrows(IllegalArgumentException.class, () -> engine.process(invalidEvent));
-        assertEquals(0, new BigDecimal("748.10").compareTo(engine.getCurrentValue()));
+        assertEquals(0, new BigDecimal("751.70").compareTo(engine.getCurrentValue()));
         assertEquals(0L, engine.getLastAcceptedSequence());
         assertTrue(engine.getAcceptedEventIds().isEmpty());
     }
@@ -191,11 +191,11 @@ class ReplayEngineTest {
         engine.process(e1);
 
         // Sequence equal to last accepted (5)
-        PriceEvent eEqual = new PriceEvent("e2", 5, LocalDate.of(2024, 8, 29), "WMT", new BigDecimal("75.23"));
+        PriceEvent eEqual = new PriceEvent("e2", 5, LocalDate.of(2024, 8, 29), "WMT", new BigDecimal("75.05"));
         assertThrows(IllegalArgumentException.class, () -> engine.process(eEqual));
 
         // Sequence less than last accepted (4 < 5)
-        PriceEvent eLess = new PriceEvent("e3", 4, LocalDate.of(2024, 8, 29), "WMT", new BigDecimal("75.23"));
+        PriceEvent eLess = new PriceEvent("e3", 4, LocalDate.of(2024, 8, 29), "WMT", new BigDecimal("75.05"));
         assertThrows(IllegalArgumentException.class, () -> engine.process(eLess));
 
         assertEquals(5L, engine.getLastAcceptedSequence());
@@ -207,7 +207,7 @@ class ReplayEngineTest {
         // Clean engine running e1 then e2
         ReplayEngine cleanEngine = new ReplayEngine(createExamplePositions());
         PriceEvent e1 = new PriceEvent("e1", 1, LocalDate.of(2024, 8, 29), "AAPL", new BigDecimal("227.88"));
-        PriceEvent e2 = new PriceEvent("e2", 2, LocalDate.of(2024, 8, 29), "WMT", new BigDecimal("75.23"));
+        PriceEvent e2 = new PriceEvent("e2", 2, LocalDate.of(2024, 8, 29), "WMT", new BigDecimal("75.05"));
         cleanEngine.process(e1);
         ReplayResult cleanResult = cleanEngine.process(e2).orElseThrow();
 
@@ -222,7 +222,7 @@ class ReplayEngineTest {
 
         // Attempt 2: Non-advancing sequence
         assertThrows(IllegalArgumentException.class, () ->
-                dirtyEngine.process(new PriceEvent("bad2", 1, LocalDate.of(2024, 8, 29), "WMT", new BigDecimal("75.23")))
+                dirtyEngine.process(new PriceEvent("bad2", 1, LocalDate.of(2024, 8, 29), "WMT", new BigDecimal("75.05")))
         );
 
         // Attempt 3: Same ID with changed content

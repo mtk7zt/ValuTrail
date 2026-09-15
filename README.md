@@ -2,7 +2,7 @@
 
 ValuTrail is a portfolio valuation tool built in Java 17. It replays ordered market price events across an initial signed portfolio and tracks how each event changes marked value and cumulative P&L.
 
-> **Current State**: The repository contains the tested Java 17 foundation, in-memory domain records (`Position`, `PriceEvent`, `ReplayResult`), and `ReplayEngine`, alongside example fixtures with hand-checked calculations. The three AAPL prices are verified against StatMuse daily close tables, while the three WMT prices remain illustrative. CSV parsing, file ingestion, and CLI replay execution are not yet implemented.
+> **Current State**: The repository contains the tested Java 17 foundation, in-memory domain records (`Position`, `PriceEvent`, `ReplayResult`), and `ReplayEngine`, alongside example fixtures with hand-checked calculations. All six fixture prices match StatMuse's displayed daily `CLOSE` table. CSV parsing, file ingestion, and CLI replay execution are not yet implemented.
 
 ## Prerequisites
 
@@ -40,7 +40,7 @@ Defines starting holdings and baseline mark prices at the initial valuation date
 ```csv
 symbol,quantity,baseline_price
 AAPL,10,224.61
-WMT,-20,74.90
+WMT,-20,74.72
 ```
 
 - `symbol`: Equity ticker symbol.
@@ -53,9 +53,9 @@ Defines the sequence of incoming market price updates to be replayed in order.
 ```csv
 eventId,sequence,date,symbol,price
 e1,1,2024-08-29,AAPL,227.88
-e2,2,2024-08-29,WMT,75.23
+e2,2,2024-08-29,WMT,75.05
 e3,3,2024-08-30,AAPL,227.10
-e4,4,2024-08-30,WMT,76.03
+e4,4,2024-08-30,WMT,75.85
 ```
 
 - `eventId`: Stable identifier (`e1`–`e4`).
@@ -64,7 +64,7 @@ e4,4,2024-08-30,WMT,76.03
 - `symbol`: Ticker symbol of the asset being updated.
 - `price`: USD reference price.
 
-> **Data Provenance & Source Review**: On 2026-09-15, I checked these fixture prices against historical tables on StatMuse Money. The three AAPL prices ($224.61, $227.88, $227.10) match StatMuse's displayed `CLOSE` column. The three WMT prices ($74.90, $75.23, $76.03) differ from the displayed `CLOSE` column ($74.72, $75.05, $75.85) by +$0.18 and are labeled as illustrative inputs. Mismatches are tracked in [`docs/DATA-PROVENANCE.md`](docs/DATA-PROVENANCE.md); changing a fixture requires updating its hand-checked calculations and tests together in a reviewed change.
+> **Data Provenance & Source Review**: On 2026-09-15, I checked and updated these fixture prices against historical tables on StatMuse Money. All six fixture prices match the values displayed in StatMuse's `CLOSE` column for August 28, 29, and 30, 2024 (without claiming a price convention StatMuse has not defined). The share quantities (+10 AAPL, -20 WMT) remain illustrative synthetic holdings chosen to test signed portfolio arithmetic. See [`docs/DATA-PROVENANCE.md`](docs/DATA-PROVENANCE.md) for full provenance details.
 
 ### Valuation Rules & Reference Results
 
@@ -75,11 +75,11 @@ e4,4,2024-08-30,WMT,76.03
 
 | Step | Date | Trigger Event | AAPL Price | WMT Price | Marked Value (USD) | Cumulative P&L (USD) |
 |---|---|---|---|---|---|---|
-| **Baseline (T0)** | 2024-08-28 | Initial Holdings | $224.61 | $74.90 | $748.10 | $0.00 |
-| **Event `e1`** (seq 1) | 2024-08-29 | AAPL @ 227.88 | $227.88 | $74.90 | $780.80 | +$32.70 |
-| **Event `e2`** (seq 2) | 2024-08-29 | WMT @ 75.23 | $227.88 | $75.23 | $774.20 | +$26.10 |
-| **Event `e3`** (seq 3) | 2024-08-30 | AAPL @ 227.10 | $227.10 | $75.23 | $766.40 | +$18.30 |
-| **Event `e4`** (seq 4) | 2024-08-30 | WMT @ 76.03 | $227.10 | $76.03 | $750.40 | +$2.30 |
+| **Baseline (T0)** | 2024-08-28 | Initial Holdings | $224.61 | $74.72 | $751.70 | $0.00 |
+| **Event `e1`** (seq 1) | 2024-08-29 | AAPL @ 227.88 | $227.88 | $74.72 | $784.40 | +$32.70 |
+| **Event `e2`** (seq 2) | 2024-08-29 | WMT @ 75.05 | $227.88 | $75.05 | $777.80 | +$26.10 |
+| **Event `e3`** (seq 3) | 2024-08-30 | AAPL @ 227.10 | $227.10 | $75.05 | $770.00 | +$18.30 |
+| **Event `e4`** (seq 4) | 2024-08-30 | WMT @ 75.85 | $227.10 | $75.85 | $754.00 | +$2.30 |
 
 ## Next Steps
 

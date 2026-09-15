@@ -13,30 +13,25 @@ On 2026-09-15, the six prices used in [`examples/positions.csv`](../examples/pos
 | Symbol | Date | Event ID | Role | Fixture Price | StatMuse `CLOSE` | Difference | Status |
 |---|---|---|---|---|---|---|---|
 | `AAPL` | 2024-08-28 | Baseline | Baseline Mark | $224.61 | $224.61 | $0.00 | Verified |
-| `WMT` | 2024-08-28 | Baseline | Baseline Mark | $74.90 | $74.72 | +$0.18 | Illustrative |
+| `WMT` | 2024-08-28 | Baseline | Baseline Mark | $74.72 | $74.72 | $0.00 | Verified |
 | `AAPL` | 2024-08-29 | `e1` | Price Event | $227.88 | $227.88 | $0.00 | Verified |
-| `WMT` | 2024-08-29 | `e2` | Price Event | $75.23 | $75.05 | +$0.18 | Illustrative |
+| `WMT` | 2024-08-29 | `e2` | Price Event | $75.05 | $75.05 | $0.00 | Verified |
 | `AAPL` | 2024-08-30 | `e3` | Price Event | $227.10 | $227.10 | $0.00 | Verified |
-| `WMT` | 2024-08-30 | `e4` | Price Event | $76.03 | $75.85 | +$0.18 | Illustrative |
+| `WMT` | 2024-08-30 | `e4` | Price Event | $75.85 | $75.85 | $0.00 | Verified |
 
 ### Audit Notes
 
-1. **Apple (`AAPL`) Observations**:
-   - All three fixture prices ($224.61, $227.88, and $227.10) match the values displayed in StatMuse's `CLOSE` column.
-   - Note: StatMuse displays these values under the column header `CLOSE`, but does not document whether they represent unadjusted closing quotes, dividend-adjusted closes, or composite tape figures.
+1. **Source Matching**:
+   - All six fixture prices ($224.61, $227.88, and $227.10 for AAPL; $74.72, $75.05, and $75.85 for WMT) match the values displayed in StatMuse's `CLOSE` column for their respective trading dates.
 
-2. **Walmart (`WMT`) Mismatches**:
-   - StatMuse displays `CLOSE` values of $74.72, $75.05, and $75.85 for August 28, 29, and 30, 2024.
-   - The fixture prices ($74.90, $75.23, and $76.03) are each higher by a constant difference of +$0.18.
-   - Because the source page does not document the underlying cause of this difference (e.g. dividend adjustment, unadjusted feed difference, or alternate tape), we do not speculate.
-   - The three WMT prices are immediately labeled as **illustrative inputs**.
+2. **StatMuse Price Convention**:
+   - StatMuse displays these values under the column header `CLOSE`. However, StatMuse does not publish documentation defining whether these numbers represent regular-session unadjusted closing quotes, dividend-adjusted closing prices, or composite volume-weighted prints. We state that the figures match StatMuse's displayed `CLOSE` column without asserting a price convention StatMuse has not defined.
 
-3. **Policy on Fixture Updates**:
-   - Retaining inaccurate prices is not a permanent policy.
-   - Any update to fixture prices must update the fixture CSV files, the hand calculations in [`docs/EXAMPLE-CALCULATION.md`](EXAMPLE-CALCULATION.md), and the test assertions in `ReplayEngineTest` together in a single reviewed change.
+3. **Update History**:
+   - Prior to this update, the WMT fixture used illustrative prices ($74.90, $75.23, $76.03) that differed by +$0.18 from StatMuse's displayed `CLOSE` table. Following ADR-003, the fixture CSV files, step-by-step hand calculations in [`docs/EXAMPLE-CALCULATION.md`](EXAMPLE-CALCULATION.md), and unit test assertions in `ReplayEngineTest` were updated together in a single reviewed change.
 
 4. **Synthetic Holdings**:
-   - The share quantities (+10 AAPL, -20 WMT) in [`examples/positions.csv`](../examples/positions.csv) are synthetic, illustrative holdings chosen to test signed portfolio arithmetic.
+   - The signed share quantities (+10 AAPL, -20 WMT) in [`examples/positions.csv`](../examples/positions.csv) remain synthetic, illustrative inputs chosen to test signed portfolio arithmetic.
 
 5. **Scope of Automated Testing**:
    - Automated tests in `dev.esosa.risk.ReplayEngineTest` verify that the replay engine executes sequence ordering, pre-mutation validation, and portfolio valuation arithmetic correctly against the fixture. Passing tests verify software behavior, not external market data accuracy.
