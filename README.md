@@ -1,8 +1,42 @@
 # ValuTrail
 
-ValuTrail is a portfolio valuation tool built in Java 25. It replays ordered market price events across an initial signed portfolio and tracks how each event changes marked value and cumulative P&L.
+<p align="center">
+  <img
+    src="docs/images/valutrail-hero.jpg"
+    alt="ValuTrail — From Market Events to Meaningful Insight"
+    width="100%"
+  />
+</p>
+
+<p align="center">
+  <strong>Deterministic portfolio valuation and market-event replay in Java.</strong>
+</p>
+
+<p align="center">
+  Reconstruct how ordered market price events change portfolio value and P&amp;L,
+  with an emphasis on reproducibility, validation, and traceability.
+</p>
+
+<p align="center">
+  <a href="https://github.com/mtk7zt/ValuTrail/actions/workflows/ci.yml"><img src="https://github.com/mtk7zt/ValuTrail/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI" /></a>
+  <img src="https://img.shields.io/badge/Java-25-ED8B00?logo=openjdk&logoColor=white" alt="Java 25" />
+  <img src="https://img.shields.io/badge/Maven-3.8+-C71A36?logo=apachemaven&logoColor=white" alt="Maven" />
+  <img src="https://img.shields.io/badge/Tests-55%20passed-brightgreen" alt="55 tests passed" />
+</p>
 
 > **Current State**: The repository contains the tested Java 25 foundation, in-memory domain records (`Position`, `PriceEvent`, `ReplayResult`, `Scenario`, `ScenarioResult`), `ReplayEngine` (historical replay and read-only scenario evaluation), strict unquoted CSV parsing (`CsvParser`), and the file-driven CLI entrypoint (`Main`). All six fixture prices match StatMuse's displayed daily `CLOSE` table.
+
+## How ValuTrail Works
+
+<p align="center">
+  <img
+    src="docs/images/valutrail-architecture.jpg"
+    alt="ValuTrail workflow: portfolio, market events, validation, replay engine, and valuation trail"
+    width="100%"
+  />
+</p>
+
+ValuTrail begins with an initial signed portfolio and processes ordered market-price events. Each event is validated before accepted state changes are applied, producing a deterministic trail of portfolio marked value and cumulative P&L.
 
 ## Prerequisites
 
