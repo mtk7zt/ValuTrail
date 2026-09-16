@@ -106,5 +106,29 @@ Beyond replaying historical market price sequences, I needed a way to evaluate h
 - Callers can evaluate instantaneous hypothetical price shifts on an in-progress replay session without altering engine state.
 - The resulting valuation change represents an immediate arithmetic revaluation under specified price shocks, not a predictive forecast or complete measure of market risk (it does not model liquidity, volatility, correlations, or risk factors).
 - Engine state integrity is preserved; invalid scenarios fail fast without leaving partial calculations.
-- Currently, scenarios are defined programmatically via the Java API; CLI flags or file-based scenario ingestion are not yet implemented.
+- File-based scenario ingestion via the CLI is specified in ADR-006.
+
+---
+
+## ADR-006: File-Driven Scenario Ingestion & CLI Integration
+
+### Status
+Accepted
+
+### Context
+Following ADR-005's in-memory scenario evaluation capability, I needed a file-driven CLI path for users to specify scenario price shocks in a CSV file and evaluate them on the portfolio after event replay. The existing two-argument replay command and its exact output contract had to remain completely unchanged.
+
+### Decisions
+1. **Optional Third Argument**: `dev.esosa.risk.Main` accepts either two or three positional arguments: `dev.esosa.risk.Main <positions.csv> <prices.csv> [scenario.csv]`. When two arguments are passed, output remains byte-for-byte identical to the historical replay report.
+2. **Scenario CSV Format & Schema**: The file requires the exact header `scenario,symbol,percentage_change`. To ensure determinism and clarity, each file defines exactly one scenario: all rows must specify the same non-blank scenario name. Duplicate symbols within the scenario file are rejected.
+3. **Mandatory Portfolio Symbol Validation**: Scenario parsing in `CsvParser` requires the portfolio's known symbols (`Set<String> portfolioSymbols`). Any symbol not present in the portfolio is rejected immediately with `<file>:<row>: Unknown portfolio symbol in scenario: '<symbol>'`. No unchecked public parsing overload is exposed.
+4. **Validation Guardrails**: Quotation marks (`"`), blank fields, column count mismatches, malformed numbers, and shifts $\le -1.0$ are rejected with file and line numbers before replay execution.
+5. **Atomic Report Guarantee**: Report lines are buffered in memory and printed to stdout only after all files are parsed, all events are processed, and scenario evaluation succeeds. Any validation or engine failure aborts execution and leaves the application stdout completely empty.
+6. **Scenario Report Output**: The scenario section prints the scenario name, base marked value, scenario prices in portfolio order from `positions.csv` (`AAPL=..., WMT=...`), scenario marked value, and signed value change.
+
+### Consequences
+- Existing two-argument historical replay scripts and automations remain 100% backward-compatible.
+- Users can evaluate hypothetical price shocks against post-replay portfolio holdings using standard CSV files.
+- Misleading partial reports are prevented on parsing or valuation errors.
+
 

@@ -35,3 +35,21 @@ On 2026-09-15, the six prices used in [`examples/positions.csv`](../examples/pos
 
 5. **Scope of Automated Testing**:
    - Automated tests in `dev.esosa.risk.ReplayEngineTest` verify that the replay engine executes sequence ordering, pre-mutation validation, and portfolio valuation arithmetic correctly against the fixture. Passing tests verify software behavior, not external market data accuracy.
+
+---
+
+## Scenario Fixture Audit: `examples/scenario.csv`
+
+The scenario definition in [`examples/scenario.csv`](../examples/scenario.csv) defines a hypothetical price shock for what-if valuation:
+
+| Scenario Name | Symbol | Percentage Shift | Effective Factor | Role | Status |
+|---|---|---|---|---|---|
+| `Tech Surge` | `AAPL` | `+0.05` (+5%) | 1.05 | Illustrative Shock | Synthetic Input |
+
+### Audit Notes
+
+1. **Illustrative Classification**:
+   - Following ADR-003, the +5% price shift for AAPL is classified as an **illustrative synthetic input**, not an external market quote or empirical forecast. It represents an instantaneous, user-chosen hypothetical price shock designed to verify that the replay engine correctly computes scenario marked values and value deltas on post-replay holdings.
+2. **Unshifted Symbols**:
+   - Portfolio symbols omitted from `examples/scenario.csv` (specifically `WMT`) retain their current marked prices ($75.85 after event `e4`).
+

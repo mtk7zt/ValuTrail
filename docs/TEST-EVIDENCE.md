@@ -206,3 +206,76 @@ Baseline: 751.70
 - Scenario marked-value changes reflect instantaneous static arithmetic revaluations under hypothetical price shifts; they are not forecasts or comprehensive market-risk calculations.
 - Replay and scenario evaluation remain single-threaded.
 
+---
+
+## 5. Scenario CLI & CSV Integration Verification (2026-09-15)
+
+### Automated Test Suite Execution
+- **Command**: `mvn -B clean test`
+- **Targets**: `dev.esosa.risk.CsvParserTest`, `dev.esosa.risk.MainTest`, `dev.esosa.risk.ReplayEngineTest`
+- **Result**: PASSED (55 tests, 0 failures, 0 errors, 0 skipped)
+
+```text
+[INFO] Running dev.esosa.risk.CsvParserTest
+[INFO] Tests run: 33, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.380 s -- in dev.esosa.risk.CsvParserTest
+[INFO] Running dev.esosa.risk.MainTest
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.051 s -- in dev.esosa.risk.MainTest
+[INFO] Running dev.esosa.risk.ReplayEngineTest
+[INFO] Tests run: 17, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.068 s -- in dev.esosa.risk.ReplayEngineTest
+[INFO] 
+[INFO] Results:
+[INFO] 
+[INFO] Tests run: 55, Failures: 0, Errors: 0, Skipped: 0
+[INFO] 
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+```
+
+### Two-File Historical Replay Execution
+- **Command**: `mvn compile exec:java "-Dexec.args=examples/positions.csv examples/prices.csv"`
+- **Result**: SUCCESS
+
+```text
+Baseline: 751.70
+1 e1 2024-08-29 AAPL 784.40 +32.70
+2 e2 2024-08-29 WMT 777.80 +26.10
+3 e3 2024-08-30 AAPL 770.00 +18.30
+4 e4 2024-08-30 WMT 754.00 +2.30
+```
+
+Output is identical to the baseline replay contract.
+
+### Three-File Replay & Scenario Execution
+- **Command**: `mvn compile exec:java "-Dexec.args=examples/positions.csv examples/prices.csv examples/scenario.csv"`
+- **Result**: SUCCESS
+
+```text
+Baseline: 751.70
+1 e1 2024-08-29 AAPL 784.40 +32.70
+2 e2 2024-08-29 WMT 777.80 +26.10
+3 e3 2024-08-30 AAPL 770.00 +18.30
+4 e4 2024-08-30 WMT 754.00 +2.30
+Scenario: Tech Surge
+Base Marked Value: 754.00
+Scenario Prices: AAPL=238.46, WMT=75.85
+Scenario Marked Value: 867.60
+Change: +113.60
+```
+
+### Verified Behavior
+- **Optional CLI Argument**: `dev.esosa.risk.Main` accepts 2 or 3 positional arguments (`<positions.csv> <prices.csv> [scenario.csv]`).
+- **CSV Ingestion**: Parses `examples/scenario.csv` (`scenario,symbol,percentage_change`) and validates symbols against known portfolio symbols.
+- **Strict Validation**: Rejects duplicate scenario symbols, unknown portfolio symbols, blank scenario names, malformed numbers, and shifts $\le -1.0$ with file and line references (`<file>:<row>: <reason>`).
+- **Atomic Output Guarantee**: Replay and scenario lines are buffered in memory; if any validation or valuation failure occurs, zero lines are written to application stdout.
+- **Scenario Pricing**: Omitted symbols retain their current post-replay price ($75.85 for WMT); shifted symbols are shocked and rounded to 2 decimal places using `RoundingMode.HALF_UP` ($227.10 \times 1.05 = 238.46$ for AAPL).
+- **Portfolio Order**: Scenario prices are displayed in the exact portfolio order established by `positions.csv` (`AAPL=238.46, WMT=75.85`).
+- **Read-Only**: Scenario evaluation uses `ReplayEngine.evaluateScenario(Scenario)` without mutating engine state.
+
+### Limitations
+- Supported CSV format is strictly unquoted comma-delimited UTF-8.
+- Each scenario file must define a single scenario (consistent scenario name across all rows).
+- Scenario marked-value changes reflect instantaneous static arithmetic revaluations under hypothetical price shocks; they are not forecasts or comprehensive market-risk calculations.
+- Replay and scenario evaluation remain single-threaded.
+
+

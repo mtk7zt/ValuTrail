@@ -13,6 +13,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -23,6 +24,7 @@ class CsvParserTest {
 
     private static final Path POSITIONS_FILE = Path.of("examples/positions.csv");
     private static final Path PRICES_FILE = Path.of("examples/prices.csv");
+    private static final Path SCENARIO_FILE = Path.of("examples/scenario.csv");
 
     @Test
     @DisplayName("Parses actual examples/positions.csv fixture file correctly")
@@ -367,5 +369,187 @@ class CsvParserTest {
         assertEquals(0, valueAfterE1.compareTo(engine.getCurrentValue()));
         assertEquals(1L, engine.getLastAcceptedSequence());
         assertEquals(1, engine.getAcceptedEventIds().size());
+    }
+
+    @Test
+    @DisplayName("Parses actual examples/scenario.csv fixture file correctly")
+    void parsesActualExampleScenarioFile() throws IOException {
+        Scenario scenario = CsvParser.parseScenario(SCENARIO_FILE, Set.of("AAPL", "WMT"));
+
+        assertEquals("Tech Surge", scenario.name());
+        assertEquals(1, scenario.percentageChanges().size());
+        assertTrue(scenario.percentageChanges().containsKey("AAPL"));
+        assertEquals(0, new BigDecimal("0.05").compareTo(scenario.percentageChanges().get("AAPL")));
+    }
+
+    @Test
+    @DisplayName("Parses multi-symbol scenario text correctly")
+    void parsesMultiSymbolScenario() throws IOException {
+        String csv = "scenario,symbol,percentage_change\n"
+                + "Tech Rally / Retail Dip,AAPL,0.10\n"
+                + "Tech Rally / Retail Dip,WMT,-0.05\n";
+        Scenario scenario = CsvParser.parseScenario(new StringReader(csv), "test-scenario.csv", Set.of("AAPL", "WMT"));
+
+        assertEquals("Tech Rally / Retail Dip", scenario.name());
+        assertEquals(2, scenario.percentageChanges().size());
+        assertEquals(0, new BigDecimal("0.10").compareTo(scenario.percentageChanges().get("AAPL")));
+        assertEquals(0, new BigDecimal("-0.05").compareTo(scenario.percentageChanges().get("WMT")));
+    }
+
+    @Test
+    @DisplayName("Rejects bad header in scenario file naming file and row 1")
+    void rejectsBadHeaderInScenarioFile() {
+        String csv = "name,ticker,shift\nTech Surge,AAPL,0.05\n";
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+                CsvParser.parseScenario(new StringReader(csv), "test-scenario.csv", Set.of("AAPL"))
+        );
+        assertTrue(ex.getMessage().contains("test-scenario.csv:1: Invalid header: expected 'scenario,symbol,percentage_change'"));
+    }
+
+    @Test
+    @DisplayName("Rejects empty scenario file missing header")
+    void rejectsEmptyScenarioFile() {
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+                CsvParser.parseScenario(new StringReader(""), "empty-scenario.csv", Set.of("AAPL"))
+        );
+        assertTrue(ex.getMessage().contains("empty-scenario.csv:1: Empty file; missing header 'scenario,symbol,percentage_change'"));
+    }
+
+    @Test
+    @DisplayName("Rejects scenario file with header but zero data rows")
+    void rejectsScenarioFileWithNoDataRows() {
+        String csv = "scenario,symbol,percentage_change\n";
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+                CsvParser.parseScenario(new StringReader(csv), "no-data-scenario.csv", Set.of("AAPL"))
+        );
+        assertTrue(ex.getMessage().contains("no-data-scenario.csv: Empty scenario file; no data rows found"));
+    }
+
+    @Test
+    @DisplayName("Rejects malformed scenario row missing or extra columns naming file and row")
+    void rejectsMalformedScenarioRowColumns() {
+        String missingCol = "scenario,symbol,percentage_change\nTech Surge,AAPL\n";
+        IllegalArgumentException exMissing = assertThrows(IllegalArgumentException.class, () ->
+                CsvParser.parseScenario(new StringReader(missingCol), "test-scenario.csv", Set.of("AAPL"))
+        );
+        assertTrue(exMissing.getMessage().contains("test-scenario.csv:2: Expected 3 columns (scenario,symbol,percentage_change) but found 2"));
+
+        String extraCol = "scenario,symbol,percentage_change\nTech Surge,AAPL,0.05,EXTRA\n";
+        IllegalArgumentException exExtra = assertThrows(IllegalArgumentException.class, () ->
+                CsvParser.parseScenario(new StringReader(extraCol), "test-scenario.csv", Set.of("AAPL"))
+        );
+        assertTrue(exExtra.getMessage().contains("test-scenario.csv:2: Expected 3 columns (scenario,symbol,percentage_change) but found 4"));
+    }
+
+    @Test
+    @DisplayName("Rejects scenario row with blank fields naming file, row, and column")
+    void rejectsScenarioRowBlankFields() {
+        String blankName = "scenario,symbol,percentage_change\n  ,AAPL,0.05\n";
+        IllegalArgumentException exName = assertThrows(IllegalArgumentException.class, () ->
+                CsvParser.parseScenario(new StringReader(blankName), "test-scenario.csv", Set.of("AAPL"))
+        );
+        assertTrue(exName.getMessage().contains("test-scenario.csv:2: Blank scenario name at column 1"));
+
+        String blankSymbol = "scenario,symbol,percentage_change\nTech Surge,  ,0.05\n";
+        IllegalArgumentException exSym = assertThrows(IllegalArgumentException.class, () ->
+                CsvParser.parseScenario(new StringReader(blankSymbol), "test-scenario.csv", Set.of("AAPL"))
+        );
+        assertTrue(exSym.getMessage().contains("test-scenario.csv:2: Blank symbol at column 2"));
+
+        String blankShift = "scenario,symbol,percentage_change\nTech Surge,AAPL,  \n";
+        IllegalArgumentException exShift = assertThrows(IllegalArgumentException.class, () ->
+                CsvParser.parseScenario(new StringReader(blankShift), "test-scenario.csv", Set.of("AAPL"))
+        );
+        assertTrue(exShift.getMessage().contains("test-scenario.csv:2: Blank percentage_change at column 3"));
+    }
+
+    @Test
+    @DisplayName("Rejects quotation marks in scenario file")
+    void rejectsQuotedScenarioFields() {
+        String quoted = "scenario,symbol,percentage_change\n\"Tech Surge\",AAPL,0.05\n";
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+                CsvParser.parseScenario(new StringReader(quoted), "test-scenario.csv", Set.of("AAPL"))
+        );
+        assertTrue(ex.getMessage().contains("test-scenario.csv:2: Quoted fields and quotation marks (\") are not supported in plain CSV reader"));
+    }
+
+    @Test
+    @DisplayName("Rejects multiple scenario names in one scenario file naming file and row")
+    void rejectsMultipleScenarioNamesInScenario() {
+        String multiNames = "scenario,symbol,percentage_change\n"
+                + "Tech Surge,AAPL,0.05\n"
+                + "Retail Shock,WMT,-0.03\n";
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+                CsvParser.parseScenario(new StringReader(multiNames), "test-scenario.csv", Set.of("AAPL", "WMT"))
+        );
+        assertTrue(ex.getMessage().contains("test-scenario.csv:3: Multiple scenario names found: expected 'Tech Surge' but found 'Retail Shock'"));
+    }
+
+    @Test
+    @DisplayName("Rejects duplicate symbol in scenario file naming file and row")
+    void rejectsDuplicateSymbolInScenario() {
+        String dup = "scenario,symbol,percentage_change\n"
+                + "Tech Surge,AAPL,0.05\n"
+                + "Tech Surge,AAPL,0.10\n";
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+                CsvParser.parseScenario(new StringReader(dup), "test-scenario.csv", Set.of("AAPL"))
+        );
+        assertTrue(ex.getMessage().contains("test-scenario.csv:3: Duplicate scenario symbol: 'AAPL'"));
+    }
+
+    @Test
+    @DisplayName("Rejects unknown portfolio symbol in scenario file naming file, row, and symbol")
+    void rejectsUnknownPortfolioSymbolInScenario() {
+        String unknown = "scenario,symbol,percentage_change\n"
+                + "Tech Surge,MSFT,0.05\n";
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+                CsvParser.parseScenario(new StringReader(unknown), "test-scenario.csv", Set.of("AAPL", "WMT"))
+        );
+        assertTrue(ex.getMessage().contains("test-scenario.csv:2: Unknown portfolio symbol in scenario: 'MSFT'"));
+    }
+
+    @Test
+    @DisplayName("Rejects invalid numeric percentage change in scenario file")
+    void rejectsInvalidPercentageNumberInScenario() {
+        String badNum = "scenario,symbol,percentage_change\n"
+                + "Tech Surge,AAPL,five-percent\n";
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+                CsvParser.parseScenario(new StringReader(badNum), "test-scenario.csv", Set.of("AAPL"))
+        );
+        assertTrue(ex.getMessage().contains("test-scenario.csv:2: Invalid percentage change number: 'five-percent'"));
+    }
+
+    @Test
+    @DisplayName("Rejects percentage change less than or equal to -1.0 (-100%) in scenario file")
+    void rejectsShiftLessOrEqualToMinusOneInScenario() {
+        String minusOne = "scenario,symbol,percentage_change\n"
+                + "Wipeout,AAPL,-1.0\n";
+        IllegalArgumentException ex1 = assertThrows(IllegalArgumentException.class, () ->
+                CsvParser.parseScenario(new StringReader(minusOne), "test-scenario.csv", Set.of("AAPL"))
+        );
+        assertTrue(ex1.getMessage().contains("test-scenario.csv:2: Percentage change must be strictly greater than -1.0 (-100%): -1.0"));
+
+        String minusOneFifty = "scenario,symbol,percentage_change\n"
+                + "Wipeout,AAPL,-1.50\n";
+        IllegalArgumentException ex2 = assertThrows(IllegalArgumentException.class, () ->
+                CsvParser.parseScenario(new StringReader(minusOneFifty), "test-scenario.csv", Set.of("AAPL"))
+        );
+        assertTrue(ex2.getMessage().contains("test-scenario.csv:2: Percentage change must be strictly greater than -1.0 (-100%): -1.50"));
+    }
+
+    @Test
+    @DisplayName("Rejects unreadable or nonexistent scenario file path with clear error")
+    void rejectsUnreadableOrNonexistentScenarioFile() {
+        Path missingFile = Path.of("examples/nonexistent-scenario.csv");
+        IllegalArgumentException exMissing = assertThrows(IllegalArgumentException.class, () ->
+                CsvParser.parseScenario(missingFile, Set.of("AAPL"))
+        );
+        assertTrue(exMissing.getMessage().contains("File not found: " + missingFile));
+
+        Path dirPath = Path.of("examples");
+        IllegalArgumentException exDir = assertThrows(IllegalArgumentException.class, () ->
+                CsvParser.parseScenario(dirPath, Set.of("AAPL"))
+        );
+        assertTrue(exDir.getMessage().contains("Path is a directory, not a regular file: " + dirPath));
     }
 }

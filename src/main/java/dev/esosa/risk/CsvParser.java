@@ -11,12 +11,14 @@ import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
 /**
- * Lightweight, unquoted comma-delimited CSV parser for ValuTrail portfolio and price event files.
+ * Lightweight, unquoted comma-delimited CSV parser for ValuTrail portfolio, price event, and scenario files.
  *
  * <p>Supported Format:
  * <ul>
@@ -33,6 +35,7 @@ public final class CsvParser {
 
     public static final String POSITIONS_HEADER = "symbol,quantity,baseline_price";
     public static final String PRICES_HEADER = "eventId,sequence,date,symbol,price";
+    public static final String SCENARIO_HEADER = "scenario,symbol,percentage_change";
 
     private CsvParser() {
         // utility class
@@ -267,5 +270,120 @@ public final class CsvParser {
         }
 
         return List.copyOf(events);
+    }
+
+    /**
+     * Parses a named scenario from a CSV file, validating symbols against the known portfolio symbols.
+     *
+     * @param path path to the scenario CSV file
+     * @param portfolioSymbols set of valid symbols present in the portfolio
+     * @return validated Scenario record
+     * @throws IOException if reading fails
+     * @throws IllegalArgumentException if file is unreadable, or headers/data rows/symbols are invalid
+     */
+    public static Scenario parseScenario(Path path, Set<String> portfolioSymbols) throws IOException {
+        Objects.requireNonNull(path, "path must not be null");
+        Objects.requireNonNull(portfolioSymbols, "portfolioSymbols must not be null");
+        if (!Files.exists(path)) {
+            throw new IllegalArgumentException("File not found: " + path);
+        }
+        if (Files.isDirectory(path)) {
+            throw new IllegalArgumentException("Path is a directory, not a regular file: " + path);
+        }
+        if (!Files.isReadable(path)) {
+            throw new IllegalArgumentException("File is not readable: " + path);
+        }
+        try (BufferedReader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
+            return parseScenario(reader, path.toString(), portfolioSymbols);
+        }
+    }
+
+    /**
+     * Parses a named scenario from a Reader with a named source for error reporting, validating symbols against known portfolio symbols.
+     *
+     * @param reader reader providing CSV text
+     * @param sourceName name of file or source used in error messages
+     * @param portfolioSymbols set of valid symbols present in the portfolio
+     * @return validated Scenario record
+     * @throws IOException if reading fails
+     * @throws IllegalArgumentException if headers, row structure, scenario consistency, or symbols are invalid
+     */
+    public static Scenario parseScenario(Reader reader, String sourceName, Set<String> portfolioSymbols) throws IOException {
+        Objects.requireNonNull(reader, "reader must not be null");
+        Objects.requireNonNull(portfolioSymbols, "portfolioSymbols must not be null");
+        String src = (sourceName != null && !sourceName.isBlank()) ? sourceName : "<unknown>";
+        BufferedReader br = (reader instanceof BufferedReader) ? (BufferedReader) reader : new BufferedReader(reader);
+
+        String header = br.readLine();
+        if (header == null) {
+            throw new IllegalArgumentException(src + ":1: Empty file; missing header '" + SCENARIO_HEADER + "'");
+        }
+        if (!header.equals(SCENARIO_HEADER)) {
+            throw new IllegalArgumentException(src + ":1: Invalid header: expected '" + SCENARIO_HEADER + "' but found '" + header + "'");
+        }
+
+        String scenarioName = null;
+        Map<String, BigDecimal> percentageChanges = new LinkedHashMap<>();
+        Set<String> seenSymbols = new HashSet<>();
+        String line;
+        int rowNum = 1;
+
+        while ((line = br.readLine()) != null) {
+            rowNum++;
+            if (line.isBlank()) {
+                throw new IllegalArgumentException(src + ":" + rowNum + ": Malformed row: empty or blank line");
+            }
+            if (line.contains("\"")) {
+                throw new IllegalArgumentException(src + ":" + rowNum + ": Quoted fields and quotation marks (\") are not supported in plain CSV reader");
+            }
+
+            String[] tokens = line.split(",", -1);
+            if (tokens.length != 3) {
+                throw new IllegalArgumentException(src + ":" + rowNum + ": Expected 3 columns (" + SCENARIO_HEADER + ") but found " + tokens.length);
+            }
+
+            String rowScenario = tokens[0].trim();
+            if (rowScenario.isEmpty()) {
+                throw new IllegalArgumentException(src + ":" + rowNum + ": Blank scenario name at column 1");
+            }
+            if (scenarioName == null) {
+                scenarioName = rowScenario;
+            } else if (!scenarioName.equals(rowScenario)) {
+                throw new IllegalArgumentException(src + ":" + rowNum + ": Multiple scenario names found: expected '" + scenarioName + "' but found '" + rowScenario + "'");
+            }
+
+            String symbol = tokens[1].trim();
+            if (symbol.isEmpty()) {
+                throw new IllegalArgumentException(src + ":" + rowNum + ": Blank symbol at column 2");
+            }
+            if (!seenSymbols.add(symbol)) {
+                throw new IllegalArgumentException(src + ":" + rowNum + ": Duplicate scenario symbol: '" + symbol + "'");
+            }
+            if (!portfolioSymbols.contains(symbol)) {
+                throw new IllegalArgumentException(src + ":" + rowNum + ": Unknown portfolio symbol in scenario: '" + symbol + "'");
+            }
+
+            String changeStr = tokens[2].trim();
+            if (changeStr.isEmpty()) {
+                throw new IllegalArgumentException(src + ":" + rowNum + ": Blank percentage_change at column 3");
+            }
+            BigDecimal change;
+            try {
+                change = new BigDecimal(changeStr);
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException(src + ":" + rowNum + ": Invalid percentage change number: '" + changeStr + "'");
+            }
+            if (change.compareTo(new BigDecimal("-1.0")) <= 0) {
+                throw new IllegalArgumentException(src + ":" + rowNum + ": Percentage change must be strictly greater than -1.0 (-100%): " + change);
+            }
+
+            percentageChanges.put(symbol, change);
+        }
+
+        if (percentageChanges.isEmpty()) {
+            throw new IllegalArgumentException(src + ": Empty scenario file; no data rows found");
+        }
+
+        return new Scenario(scenarioName, percentageChanges);
     }
 }
