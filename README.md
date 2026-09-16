@@ -1,12 +1,12 @@
 # ValuTrail
 
-ValuTrail is a portfolio valuation tool built in Java 17. It replays ordered market price events across an initial signed portfolio and tracks how each event changes marked value and cumulative P&L.
+ValuTrail is a portfolio valuation tool built in Java 25. It replays ordered market price events across an initial signed portfolio and tracks how each event changes marked value and cumulative P&L.
 
-> **Current State**: The repository contains the tested Java 17 foundation, in-memory domain records (`Position`, `PriceEvent`, `ReplayResult`), `ReplayEngine`, strict unquoted CSV parsing (`CsvParser`), and the file-driven CLI entrypoint (`Main`). All six fixture prices match StatMuse's displayed daily `CLOSE` table.
+> **Current State**: The repository contains the tested Java 25 foundation, in-memory domain records (`Position`, `PriceEvent`, `ReplayResult`, `Scenario`, `ScenarioResult`), `ReplayEngine` (historical replay and read-only scenario evaluation), strict unquoted CSV parsing (`CsvParser`), and the file-driven CLI entrypoint (`Main`). All six fixture prices match StatMuse's displayed daily `CLOSE` table.
 
 ## Prerequisites
 
-- **Java Development Kit (JDK)**: Java 17+ (configured with `--release 17`)
+- **Java Development Kit (JDK)**: Java 25+ (configured with `--release 25`)
 - **Apache Maven**: 3.8+
 - **Git**: 2.x+
 
@@ -19,7 +19,7 @@ mvn -B test
 ```
 
 ### Build Verification
-The repository includes a GitHub Actions workflow (`.github/workflows/ci.yml`) configured to run `mvn -B clean test` on pushes and pull requests to `main` using Java 17.
+The repository includes a GitHub Actions workflow (`.github/workflows/ci.yml`) configured to run `mvn -B clean test` on pushes and pull requests to `main`.
 - **What CI checks**: Automated compilation, syntax/schema and CSV parsing validation, and JUnit test suite execution against local fixture files.
 - **What CI does not check**: CI does not verify the truth or market accuracy of historical prices against external exchanges, nor does it test live market feeds or uncommitted local files. Passing CI verifies only that the codebase compiles and passes test assertions in the build environment. CI status will be reported by GitHub once the workflow has run on GitHub Actions.
 
@@ -96,7 +96,43 @@ e4,4,2024-08-30,WMT,75.85
 | **Event `e3`** (seq 3) | 2024-08-30 | AAPL @ 227.10 | $227.10 | $75.05 | $770.00 | +$18.30 |
 | **Event `e4`** (seq 4) | 2024-08-30 | WMT @ 75.85 | $227.10 | $75.85 | $754.00 | +$2.30 |
 
+## Scenario Evaluation (What-If Analysis)
+
+ValuTrail supports evaluating hypothetical price shocks against the portfolio's current holdings without advancing the historical sequence or altering engine state.
+
+> **Scope & Interpretation**: A scenario marked-value change is an instantaneous, static hypothetical revaluation based on user-specified percentage shifts. It is an arithmetic valuation test, not a price forecast or complete measure of market risk (it does not model liquidity, volatility, correlations, execution costs, or portfolio risk factors).
+
+### How It Works
+
+1. **Supply a Named Scenario**: Define a `Scenario` with a name and percentage price changes for selected symbols using `BigDecimal` decimal fractions (for example, `0.05` for +5% and `-0.03` for -3%). Symbols omitted from the scenario keep their current marked prices.
+2. **Read-Only Valuation**: Calling `engine.evaluateScenario(scenario)` calculates the hypothetical scenario marked value, its change from the current portfolio value (`scenarioValue - baseValue`), and the effective scenario prices for all symbols. Internal engine state (`latestPrices`, `acceptedEvents`, `lastAcceptedSequence`) is not modified, so running the same scenario twice yields the identical result.
+3. **Explicit Rounding Policy**: Shocked prices are calculated as `currentPrice * (1 + shift)` and rounded to 2 decimal places using `RoundingMode.HALF_UP` before computing position market values. This ensures that reported prices are auditable currency values and that position values match the displayed marks.
+4. **Validation Rules**:
+   - Every symbol in the scenario must exist in the portfolio; unknown symbols throw `IllegalArgumentException`.
+   - Percentage shifts must be strictly greater than `-1.0` (-100%); drops of 100% or more are rejected because market prices must remain strictly positive.
+   - Blank scenario names and null shifts throw exceptions.
+
+### Example
+
+```java
+// Define a scenario that shocks AAPL by +10% and WMT by -5%
+Scenario exampleScenario = new Scenario("Tech Rally / Retail Dip", Map.of(
+        "AAPL", new BigDecimal("0.10"),
+        "WMT", new BigDecimal("-0.05")
+));
+
+// Evaluate against current engine state (read-only)
+ScenarioResult result = engine.evaluateScenario(exampleScenario);
+
+System.out.println("Scenario: " + result.scenarioName());
+System.out.println("Base Value: " + result.baseValue());         // e.g. 751.70
+System.out.println("Scenario Value: " + result.scenarioValue()); // 1051.10
+System.out.println("Value Change: " + result.valueChange());     // +299.40
+```
+
 ## Next Steps
 
 - **Output Formatting & Export**: Provide options for JSON or CSV report output formats alongside standard CLI stdout lines.
+- **Scenario Ingestion**: Support defining scenarios in CSV or JSON files via CLI options.
 - **Performance & Large Feeds**: Evaluate streaming event processing for large datasets while preserving single-threaded replay determinism.
+

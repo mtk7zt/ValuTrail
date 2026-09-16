@@ -16,7 +16,7 @@ Before any feature or code change is considered complete and ready to merge/revi
 
 3. **Build & Quality Gates**:
    - The project compiles and passes verification via `mvn -B test`.
-   - Maven compiler targets Java 17 compatibility.
+   - Maven compiler targets Java 25 compatibility.
    - No compiler warnings or unmanaged dependency conflicts.
 
 4. **Documentation & Traceability**:

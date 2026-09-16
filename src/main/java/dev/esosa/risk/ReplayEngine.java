@@ -1,6 +1,7 @@
 package dev.esosa.risk;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -138,6 +139,72 @@ public final class ReplayEngine {
             total = total.add(pos.marketValue(price));
         }
         return total;
+    }
+
+    /**
+     * Evaluates a named hypothetical scenario against the portfolio's current prices without modifying
+     * internal engine state.
+     *
+     * <p>Validation rules enforced before any valuation:
+     * 1. Scenario must not be null.
+     * 2. All symbols specified in the scenario must exist in the portfolio.
+     * 3. Percentage changes must be strictly greater than -1.0 (-100%).
+     *
+     * <p>Calculation rules:
+     * 1. For each symbol in the scenario, the shocked price is calculated as
+     *    {@code currentPrice * (1 + shift)} and rounded to 2 decimal places using {@link RoundingMode#HALF_UP}.
+     * 2. Portfolio symbols omitted from the scenario retain their current marked price.
+     * 3. The scenario portfolio value is the sum of position values under the scenario prices.
+     * 4. The change in portfolio value is {@code scenarioValue - currentValue}.
+     *
+     * <p>This method is strictly read-only and idempotent: running it multiple times does not alter
+     * the portfolio valuation, latest prices, sequence counter, or event history.
+     *
+     * @param scenario the hypothetical scenario to evaluate
+     * @return an immutable ScenarioResult containing base value, scenario value, value change, and scenario prices
+     */
+    public ScenarioResult evaluateScenario(Scenario scenario) {
+        Objects.requireNonNull(scenario, "scenario must not be null");
+
+        for (String symbol : scenario.percentageChanges().keySet()) {
+            if (!positions.containsKey(symbol)) {
+                throw new IllegalArgumentException("Unknown symbol in scenario: " + symbol);
+            }
+        }
+
+        Map<String, BigDecimal> scenarioPrices = new LinkedHashMap<>();
+        for (String symbol : positions.keySet()) {
+            BigDecimal currentPrice = latestPrices.get(symbol);
+            BigDecimal shift = scenario.percentageChanges().get(symbol);
+            if (shift != null) {
+                BigDecimal shockedPrice = currentPrice.multiply(BigDecimal.ONE.add(shift))
+                        .setScale(2, RoundingMode.HALF_UP);
+                scenarioPrices.put(symbol, shockedPrice);
+            } else {
+                scenarioPrices.put(symbol, currentPrice);
+            }
+        }
+
+        BigDecimal baseValue = getCurrentValue();
+        BigDecimal scenarioValue = BigDecimal.ZERO;
+        for (Position pos : positions.values()) {
+            BigDecimal price = scenarioPrices.get(pos.symbol());
+            scenarioValue = scenarioValue.add(pos.marketValue(price));
+        }
+
+        BigDecimal valueChange = scenarioValue.subtract(baseValue);
+
+        return new ScenarioResult(
+                scenario.name(),
+                baseValue,
+                scenarioValue,
+                valueChange,
+                scenarioPrices
+        );
+    }
+
+    public ScenarioResult evaluateScenario(String name, Map<String, BigDecimal> percentageChanges) {
+        return evaluateScenario(new Scenario(name, percentageChanges));
     }
 
     public BigDecimal getBaselineValue() {

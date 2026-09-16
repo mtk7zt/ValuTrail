@@ -9,7 +9,7 @@ Accepted
 I needed a clean, minimal Java project foundation to build the valuation engine step by step without extra framework complexity or premature abstractions.
 
 ### Decisions
-1. **Language Version**: I chose Java 17 LTS as the compilation target (`<maven.compiler.release>17</maven.compiler.release>`) for record types and long-term support.
+1. **Language Version**: I chose Java 25 LTS as the compilation target (`<maven.compiler.release>25</maven.compiler.release>`) for record types and long-term support.
 2. **Build Tool**: I picked standard Apache Maven for dependency management and lifecycle phases.
 3. **Testing**: I use JUnit 5 (JUnit Jupiter) with `maven-surefire-plugin` for automated tests.
 4. **Execution Plugin**: I configured `exec-maven-plugin` with `dev.esosa.risk.Main` so the entrypoint can run directly with `mvn exec:java`.
@@ -17,7 +17,7 @@ I needed a clean, minimal Java project foundation to build the valuation engine 
 
 ### Consequences
 - Builds are fast and straightforward with minimal configuration.
-- The project compiles and runs tests out of the box on standard Java 17+ environments.
+- The project compiles and runs tests out of the box on standard Java 25+ environments.
 
 ---
 
@@ -82,3 +82,29 @@ I needed to ingest portfolio holdings (`examples/positions.csv`) and price event
 ### Consequences
 - Zero external dependencies are added to `pom.xml`.
 - Contributors know that quotation marks and quoted or multiline CSV records are not supported; if quote parsing is needed in the future, a full RFC 4180 parser must be implemented explicitly rather than relying on regex or string splits.
+
+---
+
+## ADR-005: In-Memory Scenario Evaluation and Rounding Policy
+
+### Status
+Accepted
+
+### Context
+Beyond replaying historical market price sequences, I needed a way to evaluate hypothetical price shocks (what-if scenarios) against the portfolio's current holdings without polluting the historical event log or altering the engine's internal valuation state.
+
+### Decisions
+1. **Read-Only Evaluation**: `evaluateScenario` computes the hypothetical portfolio value and its change from the current mark without mutating any internal state (`latestPrices`, `acceptedEvents`, `lastAcceptedSequence`). Running the same scenario multiple times produces the exact same `ScenarioResult`, and subsequent historical price events continue processing as if the scenario was never run.
+2. **Decimal Fraction Representation**: Percentage price shifts are expressed as decimal fractions in `BigDecimal` (for example, `0.10` for +10% and `-0.05` for -5%), where $P_{scenario} = P_{current} \times (1 + \text{shift})$. Symbols omitted from the scenario retain their current marked prices.
+3. **Explicit Half-Up Rounding**: Multiplying prices by arbitrary percentage shifts can produce fractional cents (for example, $\$224.61 \times 1.10 = \$247.071$). I explicitly round scenario prices to 2 decimal places using `RoundingMode.HALF_UP` before computing position market values. This keeps scenario prices auditable as quoted dollar figures and ensures the scenario portfolio value matches the sum of displayed position marks without hidden sub-cent precision.
+4. **Pre-Evaluation Validation**: Before calculating any prices, the engine verifies that:
+   - Scenario names are non-blank.
+   - All scenario symbols exist in the initial portfolio (unknown symbols throw `IllegalArgumentException`).
+   - Percentage changes are non-null and strictly greater than `-1.0` (-100%). A drop of 100% or more is rejected because market prices must remain strictly positive.
+
+### Consequences
+- Callers can evaluate instantaneous hypothetical price shifts on an in-progress replay session without altering engine state.
+- The resulting valuation change represents an immediate arithmetic revaluation under specified price shocks, not a predictive forecast or complete measure of market risk (it does not model liquidity, volatility, correlations, or risk factors).
+- Engine state integrity is preserved; invalid scenarios fail fast without leaving partial calculations.
+- Currently, scenarios are defined programmatically via the Java API; CLI flags or file-based scenario ingestion are not yet implemented.
+
